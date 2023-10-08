@@ -1,0 +1,230 @@
+---
+title: "Leaflet og danske kort"
+author: "Søren Johansen"
+date: "2023-10-08"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+# Start med Leaflet
+
+## Opgave 1 - at lave et Danmarkskort og døbe det "DANmap", inklusive Esri-lag
+
+Som altid starter vi med at indlæse de fornødne pakker.
+
+```{r}
+library(leaflet)
+library(htmlwidgets)
+library(tidyverse)
+library(googlesheets4)
+gs4_deauth()
+```
+
+Vi dvæler lige ved `gs4_deauth` - med denne kommando undgås bøvl med Google-login ved `googlesheets4`-pakken senere.
+
+Jeg vil starte med lige at tjekke Danmarks (vel, Københavns) koordinater jævnfør Google Maps.
+NB: Vi beagter, at man skal indtaste koordinaterne med længdegraderne først i R, mens de på Google Maps' adresselinje står med breddegraderne først!
+
+```{r}
+leaflet() %>%   
+  setView(13.197304, 55.719437, zoom = 6) %>% 
+  addTiles()
+```
+
+Det funker - nydeligt.
+
+Vi går videre ved at klargøre et bibliotek af forskellige baggrunde formedelst Esri:
+
+```{r}
+esri <- grep("^Esri", providers, value = TRUE)
+```
+
+Og vi definerer lige vores "basiskort":
+
+```{r}
+DKCoords <- leaflet() %>%   
+  setView(13.197304, 55.719437, zoom = 6)
+```
+
+Vi tilføjer kortbaggrunde til vores basiskort ved hjælp af nedenstående funktion, jeg har tyvstjålet fra opgaveforlægget. Jeg skal være ærlig og tilkendegive, at jeg ikke helt forstår syntaksen, men if it works, it ain't stupid:
+
+```{r}
+for (provider in esri) {
+  DKCoords <- DKCoords %>% addProviderTiles(provider, group = provider)
+}
+```
+
+Vi kan nu tilsnitte vores Danmarkskort (også her med udgangspunkt i opgaveforlægget - det inkluderer et fint afstandsmålingskomponent med `addMeasure`):
+
+```{r}
+DANmap <- DKCoords %>%
+  addLayersControl(baseGroups = names(esri),
+                   options = layersControlOptions(collapsed = FALSE)) %>%
+  addMiniMap(tiles = esri[[1]], toggleDisplay = TRUE,
+             position = "bottomright") %>%
+  addMeasure(
+    position = "bottomleft",
+    primaryLengthUnit = "meters",
+    primaryAreaUnit = "sqmeters",
+    activeColor = "#3D535D",
+    completedColor = "#7D4479") %>% 
+  htmlwidgets::onRender("
+                        function(el, x) {
+                        var myMap = this;
+                        myMap.on('baselayerchange',
+                        function (e) {
+                        myMap.minimap.changeLayer(L.tileLayer.provider(e.name));
+                        })
+                        }") %>% 
+addControl("", position = "topright")
+
+DANmap
+```
+
+**Det virkede! Glück gehabt, großer Erfolg!**
+
+For sjovs skyld kan vi lige prøve at gemme kortet:
+
+```{r}
+saveWidget(DANmap, "DANmap.html", selfcontained = TRUE)
+```
+
+Jeg kan se i min filmappe, at det virkede (tag mig på ordet!).
+
+
+## Opgave 2 - at putte data ind i kortet
+
+Vi har på forhånd indtastet en masse koordinater på mere eller mindre spændende steder i Danmark i et Google-Sheets-ark, som vi nu ved hjælp af `googlesheets4`-pakken vil indlæse i R.
+
+```{r}
+places <- read_sheet("https://docs.google.com/spreadsheets/d/1PlxsPElZML8LZKyXbqdAYeQCDIvDps2McZx1cTVWSzI/edit#gid=124710918",
+                     col_types = "cccnncnc", range = "DigitalMethods")
+# bemærk tilføjelserne - col_types fortæller maskineriet at den skal indlæse søjlerne som værende hhv. character, character, character, numeric, etc. etc. "range" angiver, at det kun er siden i Google-Sheets-arket med navnet "DigitalMethods", der skal downloades. Ordnung muss sein!
+```
+
+Vi kigger lige, om det er indlæst som det skal.
+
+```{r}
+glimpse(places)
+```
+
+Det er det. Vi går troligt videre.
+
+Vi kan nu lave vores første kort med ovenstående data.
+
+```{r}
+DANmap_ourdata <- DKCoords %>% 
+  addLayersControl(baseGroups = names(esri),
+                   options = layersControlOptions(collapsed = FALSE)) %>%
+  addMiniMap(tiles = esri[[1]], toggleDisplay = TRUE,
+             position = "bottomright") %>%
+  addMeasure(
+    position = "bottomleft",
+    primaryLengthUnit = "meters",
+    primaryAreaUnit = "sqmeters",
+    activeColor = "#3D535D",
+    completedColor = "#7D4479") %>% 
+  htmlwidgets::onRender("
+                        function(el, x) {
+                        var myMap = this;
+                        myMap.on('baselayerchange',
+                        function (e) {
+                        myMap.minimap.changeLayer(L.tileLayer.provider(e.name));
+                        })
+                        }") %>% 
+  addControl("", position = "topright") %>% 
+  addMarkers(lng = places$Longitude, 
+             lat = places$Latitude,
+             popup = places$Description)
+
+DANmap_ourdata
+```
+
+**Quod erat demonstrandum - maskinen medgiver, at der er 2 rækker med ugyldige koordinater, hvorfor kortet mangler 2 punkter.**
+
+**...Jeg ser nu, at der er ingen på på kurset, der nogensinde har skænket seværdighederne på Bornholm en tanke! Hahahah - det er sgudda pudsigt.**
+
+
+## Opgave 3 (og 4!) - at "clustre" kortpunkterne
+
+Man kan sammenklumpe punkterne på kortet ved hjælp af `clusterOptions = markerClusterOptions()`-argumentet inden i `addMarkers`-sektionen:
+
+```{r}
+DANmap_ourdata_clusters <- DKCoords %>% 
+  addLayersControl(baseGroups = names(esri),
+                   options = layersControlOptions(collapsed = FALSE)) %>%
+  addMiniMap(tiles = esri[[1]], toggleDisplay = TRUE,
+             position = "bottomright") %>%
+  addMeasure(
+    position = "bottomleft",
+    primaryLengthUnit = "meters",
+    primaryAreaUnit = "sqmeters",
+    activeColor = "#3D535D",
+    completedColor = "#7D4479") %>% 
+  htmlwidgets::onRender("
+                        function(el, x) {
+                        var myMap = this;
+                        myMap.on('baselayerchange',
+                        function (e) {
+                        myMap.minimap.changeLayer(L.tileLayer.provider(e.name));
+                        })
+                        }") %>% 
+  addControl("", position = "topright") %>% 
+  addMarkers(lng = places$Longitude, 
+             lat = places$Latitude,
+             popup = places$Description,
+             clusterOptions = markerClusterOptions)
+
+DANmap_ourdata_clusters
+```
+
+**Tadaa. Kortet er da funktionelt, men videregiver ikke særlig mange informationer udover punktets geografiske placering og en lille beskrivelse. Hvad for noget punktet henviser til, og om det er et besøg værd fortælles der ikke noget om. Det lyder som en overgang til en ny opgave...**
+
+
+## Opgave 5 - at tilføje noter og beskrivelser til vores kort
+
+Nej, se nu lige der - det, som kortet manglede i opgave 3/4, er det, vi skal tilføje nu! Så vi skal forsøge at få maskinen til også at videregive de ting, vi skrev i notits- og beskrivelsessøjlerne i vores Google-Sheets-ark.
+
+```{r}
+DANMap_ourdata_full <- DKCoords %>% 
+  addLayersControl(baseGroups = names(esri),
+                   options = layersControlOptions(collapsed = FALSE)) %>%
+  addMiniMap(tiles = esri[[1]], toggleDisplay = TRUE,
+             position = "bottomright") %>%
+  addMeasure(
+    position = "bottomleft",
+    primaryLengthUnit = "meters",
+    primaryAreaUnit = "sqmeters",
+    activeColor = "#3D535D",
+    completedColor = "#7D4479") %>% 
+  htmlwidgets::onRender("
+                        function(el, x) {
+                        var myMap = this;
+                        myMap.on('baselayerchange',
+                        function (e) {
+                        myMap.minimap.changeLayer(L.tileLayer.provider(e.name));
+                        })
+                        }") %>% 
+  addControl("", position = "topright") %>% 
+  addMarkers(lng = places$Longitude, 
+             lat = places$Latitude,
+             popup = paste0( "<b>Name: </b>",
+                             places$Placename, 
+                             "<br>",
+                             "<b>Type: </b>",
+                             places$Type,
+                             "<br>",
+                             "<b>Description: </b>",
+                             places$Description,
+                             "<br>",
+                             "<b>Stars 1-5: </b>",
+                             places$Stars1_5),
+             clusterOptions = markerClusterOptions)
+
+DANMap_ourdata_full
+```
+
+**Det virkede skisme - hurrah!**
