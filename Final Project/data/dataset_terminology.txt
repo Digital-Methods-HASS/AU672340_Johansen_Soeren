@@ -1,0 +1,20 @@
+***TERMINOLOGY OF THE DATASET***
+
+The “constructionyear” indicates the year in which the instrument was completed in its current rendition. 
+That is, even though some instruments contain parts from the 16th and 17th centuries, it is possible that the “constructionyear” states a later year (e.g. the organ of Aarhus Domkirke lists 1928, even though the casework is from the 18th century).
+
+“locality” indicates where the organ is placed in Denmark.
+
+“organbuilder” indicates the company that constructed the instrument. 
+In the instruction section (“Vejledning”) on orgel.natmus.dk it is stated that the same company may be represented with different names; it is likely that the listed company name of a specific instrument is the name of the company at the time of the completion of the instrument.
+
+“architect” gives the company name of the architectural firm behind the casework of the instrument, if applicable.
+
+“stopsnumber” tells us the amount of stops – those lever-like things the organist pulls out to specify the sound of the instrument. 
+It is unclear whether or not the Organ Registrant here also includes stops that doesn’t produce a sound of its own (like couplers or tremulants). 
+	
+“manualsnumber” lists the amount of manuals – that is, keyboards – on a given instrument.
+	
+“pedals” specifies whether or not an instrument has a pedalboard. 
+If yes, “Pedal” is entered. If not, “(Intet Pedal)” (English: “No Pedal”). 
+If the pedal division of the instrument is not independent, “Anhangspedal” (English: “Pull-down Pedal”) is entered.
