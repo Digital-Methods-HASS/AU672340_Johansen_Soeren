@@ -1,0 +1,120 @@
+---
+title: "Final Project"
+author: "Søren Johansen"
+date: "2023-10-23"
+output:
+  html_document: default
+  pdf_document: default
+---
+
+# Mapping the Church Organs of Denmark
+
+
+##### First off, we load the relevant packages.
+
+```{r Loading the Packages} 
+library(tidyverse)
+library(leaflet)
+library(dplyr)
+library(opencage)
+library(usethis)
+```
+
+
+##### Then I make use of the `usethis` package in order to load and edit the r-environ file from within R with regards to my OpenCage Geocoding API.
+
+```{r Setting up my OpenCage-key}
+usethis::edit_r_environ()
+```
+
+
+##### By running this command, a popup window apperas. In this window, I typed in `OPENCAGE_KEY = YOUR KEY`, picked up from my OpenCage account dashboard at https://opencagedata.com/dashboard#geocoding. This step is, as far as I know, required to make OpenCage work. 
+
+##### Now I load in my csv-file with my tidy data about the church organs of Denmark.
+
+```{r Loading in the church organ csv-file}
+dkorganschurchtibble <- read_csv2(("data/dkorgans_tidydata_onlykirker.csv"), na = "")
+```
+
+
+##### In order for the OpenCage-API to get cracking producing coordinates for the map, we need to feed it with a vector of place names, i.e. the column `locality` from ´dkorganschurchtibble´, containing the place names of our church organs. Luckily, dplyr has a lovely `pull`-function, which makes this a quick process.
+
+```{r Turning the location data into a vector}
+localityvector <- pull(dkorganschurchtibble, locality)
+```
+
+
+##### Now we can get OpenCage cooking with our location vector.
+
+```{r Bringing OpenCage into action, eval = FALSE}
+# First I type in my OpenCage-key into the local R environment.
+Sys.setenv(OPENCAGE_KEY = "988757937dd14109b4e4cbb1f7d91d04")
+
+# Now, we begin the slow process of getting OpenCage to create a tibble with coordinates and an address for every place name in our locality vector. We ideally only want one set of coordinates per location, so we set the limit to 1. And since we will provide the map with our own annotations later on, we set no_annotations to TRUE.
+dkorgancoordinates <- oc_forward_df(placename = localityvector, countrycode = "DK", limit = 1, no_annotations = TRUE)
+
+# Let's put the new tibble with the coordinates and addresses into a csv-file.
+write_csv(dkorgancoordinates, file = "data_output/dkorgancoordinates.csv")
+```
+
+
+##### With the coordinates retrieved, I make a new spreadsheet consisting of the newly gained coordinates and addresses as well as the data contained in the `dkorgans_tidydata_onlykirker`-spreadsheet. Thus, a new spreadsheet containing all the needed information for our map is created and dubbed `dkorgans_tidydata_onlykirker_withcoordinates`. Let's load that in.
+
+```{r Loading in our final spreadsheet}
+mapdata <- read_csv2(("data/dkorgans_tidydata_onlykirker_withcoordinates.csv"), na = "") %>% 
+  mutate_at(c("oc_lat", "oc_lng"), as.numeric) # Because OpenCage uses the American decimal seperator ("."), and this is a European work environment, I have to punch in that the coordinate columns are, in fact, numeric.
+
+# Let's have a sneak peek.
+head(mapdata)
+```
+
+
+##### Looks lovely.
+
+##### Now, we can create the map.
+
+```{r Aint no time like map time!}
+# addProviderTiles adds in map layers to choose. In the parentheses, I give the chosen base layers a custom name with "group = ", which looks prettier in the end.
+# addLayersControl specifies if we want the map choosing menu collapsed or not. I chose not.
+# addMarkes specifies where to get our data for our points on the map. I told the machine to use the coordinates from the object "mapdata". clusterOptions makes the points appear as clusters when zoomed far enough out. The popup section makes use of some HTML code to display the organ data from "mapdata" in a neat, that is, bold, manner. 
+dkorganmap <- leaflet() %>%
+    addProviderTiles(providers$OpenStreetMap, group = "OpenStreetMap Standard") %>% 
+    addProviderTiles(providers$Esri.WorldStreetMap, group = "Esri Streetmap") %>% 
+    addProviderTiles(providers$Esri.WorldImagery, group = "Esri Satellite") %>% 
+    addLayersControl(
+    baseGroups = c("OpenStreetMap Standard", "Esri Streetmap", "Esri Satellite"), options = layersControlOptions(collapsed = FALSE)) %>% 
+    addMarkers(mapdata$oc_lng, 
+               mapdata$oc_lat, 
+               clusterOptions = markerClusterOptions,
+               popup = paste0( "<b>Locality: </b>",
+                             mapdata$oc_formatted, 
+                             "<br>",
+                             "<b>Year of construction: </b>",
+                             mapdata$constructionyear,
+                             "<br>",
+                             "<b>Organ builder: </b>",
+                             mapdata$organbuilder,
+                             "<br>",
+                             "<b>Architect: </b>",
+                             mapdata$architect,
+                             "<br>",
+                             "<b>Number of manuals: </b>",
+                             mapdata$manualsnumber,
+                             "<br>",
+                             "<b>Number of stops: </b>",
+                             mapdata$stopsnumber,
+                             "<br>",
+                             "<b>Pedals: </b>",
+                             mapdata$pedals))
+```
+
+
+##### We get a warning that it contains 182 rows with missing data - that means that OpenCage was unable to find the coordinates of 182 of our 2393 churches. Still, it got over 2000.
+
+##### Let's print the map!
+
+```{r}
+dkorganmap
+```
+
+**Quod erat demonstrandum.**
