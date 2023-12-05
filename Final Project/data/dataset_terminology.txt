@@ -1,4 +1,5 @@
 ***TERMINOLOGY OF THE DATASET***
+All the data are from the table at orgel.natmus.dk, as it were in November 2023.
 
 The “constructionyear” indicates the year in which the instrument was completed in its current rendition. 
 That is, even though some instruments contain parts from the 16th and 17th centuries, it is possible that the “constructionyear” states a later year (e.g. the organ of Aarhus Domkirke lists 1928, even though the casework is from the 18th century).
